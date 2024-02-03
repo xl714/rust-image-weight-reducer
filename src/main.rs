@@ -7,6 +7,8 @@ use std::fs;
 use std::io::{self};
 use std::path::PathBuf;
 use std::process; // , Write
+// use filetime::FileTime;
+use filetime::{set_file_times, FileTime};
 
 // fn main() -> std::io::Result<()> {
 // fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -30,19 +32,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             if input.is_empty() {
                 break;
-            } else {
-                match input.parse::<f64>() {
-                    Ok(val) => {
-                        if val >= 1.0 && val <= 10.0 {
-                            max_mo = val;
-                            break;
-                        } else {
-                            println!("Valeur non valide. Veuillez entrer un nombre entre 1 et 10.");
-                        }
-                    }
-                    Err(_) => {
+            }
+            match input.parse::<f64>() {
+                Ok(val) => {
+                    if val >= 1.0 && val <= 10.0 {
+                        max_mo = val;
+                        break;
+                    } else {
                         println!("Valeur non valide. Veuillez entrer un nombre entre 1 et 10.");
                     }
+                }
+                Err(_) => {
+                    println!("Valeur non valide. Veuillez entrer un nombre entre 1 et 10.");
                 }
             }
         }
@@ -131,7 +132,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                             FilterType::Lanczos3,
                         );
                         match img.save_with_format(full_img_small_name, ImageFormat::Jpeg) {
-                            Ok(_) => (),
+                            Ok(_) => {
+                                let metadata = fs::metadata(&entry.path())?;
+                                let creation_time:FileTime = metadata.created()?.into();
+                                let last_access_time:FileTime = metadata.modified()?.into();
+                                set_file_times(&full_img_small_name, creation_time, last_access_time)?;
+                            },
                             Err(_e) => {
                                 errors.push(full_img_small_name.to_str().unwrap().to_owned())
                             }
