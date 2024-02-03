@@ -7,8 +7,9 @@ use std::fs;
 use std::io::{self};
 use std::path::PathBuf;
 use std::process; // , Write
-// use filetime::FileTime;
-use filetime::{set_file_times, FileTime};
+// use filetime::{set_file_times, FileTime};
+use filetime::set_file_times;
+use filetime_creation::{FileTime, set_file_ctime};
 
 // fn main() -> std::io::Result<()> {
 // fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -135,8 +136,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                             Ok(_) => {
                                 let metadata = fs::metadata(&entry.path())?;
                                 let creation_time:FileTime = metadata.created()?.into();
+                                println!("   => creation_time {} ...", creation_time);
                                 let last_access_time:FileTime = metadata.modified()?.into();
                                 set_file_times(&full_img_small_name, creation_time, last_access_time)?;
+
+                                let new_metadata = fs::metadata(&full_img_small_name)?;
+                                
+                                let new_creation_time:FileTime = new_metadata.created()?.into();
+                                println!("   => new_creation_time {} ...", new_creation_time);
+                                if creation_time != new_creation_time {
+                                    println!("   => creation_time != new_creation_time ==> trying another way");
+                                    set_file_ctime(&entry.path(), creation_time)?;
+                                }
                             },
                             Err(_e) => {
                                 errors.push(full_img_small_name.to_str().unwrap().to_owned())

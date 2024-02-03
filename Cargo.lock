@@ -167,6 +167,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "filetime_creation"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d273b12293b73b44ab8a525e161f74ebe2f38dd50c33ce7f538a4ccf9077383"
+dependencies = [
+ "cfg-if",
+ "filetime",
+ "windows-sys",
+]
+
+[[package]]
 name = "flate2"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -500,6 +511,7 @@ name = "rust-minimize-images-quality-by-dir"
 version = "0.1.0"
 dependencies = [
  "filetime",
+ "filetime_creation",
  "image",
  "regex",
 ]
