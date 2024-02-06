@@ -1,3 +1,5 @@
+use filetime::set_file_times;
+use filetime_creation::FileTime;
 use image::imageops::FilterType;
 use image::{io::Reader, ImageFormat}; // ImageOutputFormat
 use regex::Regex;
@@ -5,15 +7,96 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::io::{self};
-use std::path::PathBuf;
-//use std::process; // , Write
-// use filetime::{set_file_times, FileTime};
-use filetime::set_file_times;
-use filetime_creation::{set_file_ctime, FileTime};
+use std::path::Path;
+use std::path::PathBuf; // Import the Path type
 use std::time::{Duration, Instant};
+// use std::process;
+// use filetime::{set_file_times, FileTime};
+// use std::fs::Metadata;
+// use std::time::{SystemTime, UNIX_EPOCH};
 
 // fn main() -> std::io::Result<()> {
 // fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+fn set_creation_and_updated_date_default(
+    entry: &fs::DirEntry,
+    full_img_small_name: &Path,
+) -> Result<(), std::io::Error> {
+    let metadata = fs::metadata(&entry.path())?;
+    let creation_time: FileTime = metadata.created()?.into();
+    println!("   => creation_time {} ...", creation_time);
+    let last_access_time: FileTime = metadata.modified()?.into();
+    set_file_times(&full_img_small_name, creation_time, last_access_time)?;
+
+    let new_metadata = fs::metadata(&full_img_small_name)?;
+    let new_creation_time: FileTime = new_metadata.created()?.into();
+    println!("   => new_creation_time {} ...", new_creation_time);
+    if creation_time != new_creation_time {
+        println!("   => creation_time != new_creation_time ==> trying another way");
+        set_creation_date_specific(&creation_time, &entry, &full_img_small_name);
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn set_creation_date_specific(
+    creation_time: &FileTime,
+    entry: &fs::DirEntry,
+    full_img_small_name: &Path,
+) {
+    use filetime_creation::set_file_ctime;
+    // set_file_ctime(&entry.path(), creation_time)?;
+    match set_file_ctime(&entry.path(), creation_time) {
+        Ok(()) => (),
+        Err(err) => {
+            println!("    => Error setting creation time 2: {}", err);
+            // Handle the error gracefully here
+        }
+    }
+    let new_metadata_2 = fs::metadata(&full_img_small_name)?;
+    let new_creation_time_2: FileTime = new_metadata_2.created()?.into();
+    if creation_time != new_creation_time_2 {
+        println!("   => creation_time != new_creation_time_2 ==> impossible to set creation time");
+    }
+}
+/*
+#[cfg(target_os = "linux")]
+fn set_creation_date_specific(
+    creation_time: &FileTime,
+    _entry_: &fs::DirEntry,
+    _full_img_small_name_: &Path,
+) {
+    set_file_ctime(path: &str)
+    // Code that only runs on Linux
+    use libc::{utimensat, AT_FDCWD, UTIME_NOW};
+    use std::fs::File;
+    // use std::os::unix::prelude::*;
+    let file = File::open(path)?;
+    let now = std::time::SystemTime::now().into();
+    let atime = libc::timespec {
+        tv_sec: creation_time.tv_sec as libc::time_t,
+        tv_nsec: creation_time.tv_nsec as libc::c_long,
+    };
+    let mut times = [atime, atime];
+    unsafe {
+        utimensat(
+            AT_FDCWD,
+            path.as_ptr() as *const libc::c_char,
+            &mut times as *mut _,
+            0,
+        );
+    }
+    Ok(())
+}
+*/
+fn set_creation_date_specific(
+    _creation_time: &FileTime,
+    _entry_: &fs::DirEntry,
+    _full_img_small_name_: &Path,
+) {
+    //
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     logo();
     let max_tries = 100;
@@ -148,33 +231,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
 
                     // SET CREATION AND MODIFIED DATE
-
-                    let metadata = fs::metadata(&entry.path())?;
-                    let creation_time: FileTime = metadata.created()?.into();
-                    println!("   => creation_time {} ...", creation_time);
-                    let last_access_time: FileTime = metadata.modified()?.into();
-                    set_file_times(&full_img_small_name, creation_time, last_access_time)?;
-
-                    let new_metadata = fs::metadata(&full_img_small_name)?;
-                    let new_creation_time: FileTime = new_metadata.created()?.into();
-                    println!("   => new_creation_time {} ...", new_creation_time);
-                    if creation_time != new_creation_time {
-                        println!("   => creation_time != new_creation_time ==> trying another way");
-                        // set_file_ctime(&entry.path(), creation_time)?;
-                        match set_file_ctime(&entry.path(), creation_time) {
-                            Ok(()) => (),
-                            Err(err) => {
-                                println!("Error setting creation time 2: {}", err);
-                                // Handle the error gracefully here
-                            }
-                        }
-
-                        let new_metadata_2 = fs::metadata(&full_img_small_name)?;
-                        let new_creation_time_2: FileTime = new_metadata_2.created()?.into();
-                        if creation_time != new_creation_time_2 {
-                            println!("   => creation_time != new_creation_time_2 ==> impossible to set creation time");
-                        }
-                    }
+                    set_creation_and_updated_date_default(&entry, &full_img_small_name);
 
                     println!("Image {} resized {} times.", full_img_name, num_tries);
                     num_decreased += 1;
