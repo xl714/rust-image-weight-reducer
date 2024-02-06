@@ -6,10 +6,11 @@ use std::error::Error;
 use std::fs;
 use std::io::{self};
 use std::path::PathBuf;
-use std::process; // , Write
+//use std::process; // , Write
 // use filetime::{set_file_times, FileTime};
 use filetime::set_file_times;
-use filetime_creation::{FileTime, set_file_ctime};
+use filetime_creation::{set_file_ctime, FileTime};
+use std::time::{Duration, Instant};
 
 // fn main() -> std::io::Result<()> {
 // fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,6 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut max_mo = 1.0;
     let mut suffix = "_small".to_string();
     let args: Vec<String> = env::args().collect();
+    let mut start_time = Instant::now();
 
     // if first arg is "default" then print "using default values"
     if !(args.len() > 1 && args[1] == "default") {
@@ -48,6 +50,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+
+        start_time = Instant::now();
 
         let regex = Regex::new(r"^[0-9a-zA-Z\_\-\.]+$").unwrap();
         loop {
@@ -134,27 +138,44 @@ fn main() -> Result<(), Box<dyn Error>> {
                         );
                         match img.save_with_format(full_img_small_name, ImageFormat::Jpeg) {
                             Ok(_) => {
-                                let metadata = fs::metadata(&entry.path())?;
-                                let creation_time:FileTime = metadata.created()?.into();
-                                println!("   => creation_time {} ...", creation_time);
-                                let last_access_time:FileTime = metadata.modified()?.into();
-                                set_file_times(&full_img_small_name, creation_time, last_access_time)?;
-
-                                let new_metadata = fs::metadata(&full_img_small_name)?;
-                                
-                                let new_creation_time:FileTime = new_metadata.created()?.into();
-                                println!("   => new_creation_time {} ...", new_creation_time);
-                                if creation_time != new_creation_time {
-                                    println!("   => creation_time != new_creation_time ==> trying another way");
-                                    set_file_ctime(&entry.path(), creation_time)?;
-                                }
-                            },
+                                println!("   => Reduced #{} done", (num_tries + 1));
+                            }
                             Err(_e) => {
                                 errors.push(full_img_small_name.to_str().unwrap().to_owned())
                             }
                         }
                         num_tries += 1;
                     }
+
+                    // SET CREATION AND MODIFIED DATE
+
+                    let metadata = fs::metadata(&entry.path())?;
+                    let creation_time: FileTime = metadata.created()?.into();
+                    println!("   => creation_time {} ...", creation_time);
+                    let last_access_time: FileTime = metadata.modified()?.into();
+                    set_file_times(&full_img_small_name, creation_time, last_access_time)?;
+
+                    let new_metadata = fs::metadata(&full_img_small_name)?;
+                    let new_creation_time: FileTime = new_metadata.created()?.into();
+                    println!("   => new_creation_time {} ...", new_creation_time);
+                    if creation_time != new_creation_time {
+                        println!("   => creation_time != new_creation_time ==> trying another way");
+                        // set_file_ctime(&entry.path(), creation_time)?;
+                        match set_file_ctime(&entry.path(), creation_time) {
+                            Ok(()) => (),
+                            Err(err) => {
+                                println!("Error setting creation time 2: {}", err);
+                                // Handle the error gracefully here
+                            }
+                        }
+
+                        let new_metadata_2 = fs::metadata(&full_img_small_name)?;
+                        let new_creation_time_2: FileTime = new_metadata_2.created()?.into();
+                        if creation_time != new_creation_time_2 {
+                            println!("   => creation_time != new_creation_time_2 ==> impossible to set creation time");
+                        }
+                    }
+
                     println!("Image {} resized {} times.", full_img_name, num_tries);
                     num_decreased += 1;
                 }
@@ -171,43 +192,59 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("{}", error);
         }
     };
-    dx("Done");
+
+    let end_time = Instant::now();
+    let elapsed_time = end_time - start_time;
+    println!("Script execution time: {}", format_duration(elapsed_time));
+
     Ok(())
 }
 
-fn dx(msg: &str) {
-    println!("{}!", msg);
-    process::exit(0);
+// fn dx(msg: &str) {
+//     println!("{}!", msg);
+//     process::exit(0);
+// }
+
+fn format_duration(duration: Duration) -> String {
+    let seconds = duration.as_secs();
+    let millis = duration.subsec_millis();
+    format!(
+        "{:02}:{:02}:{:02}.{:03}",
+        seconds / 3600,
+        (seconds / 60) % 60,
+        seconds % 60,
+        millis
+    )
 }
 
 fn logo() {
     println!(
         r#"
 
-         ____  __  __    __     ___  ____             
-        (_  _)(  \/  )  /__\   / __)( ___)            
-         _)(_  )    (  /(__)\ ( (_-. )__)             
-        (____)(_/\/\_)(__)(__) \___/(____)            
-   _____  __  __    __    __    ____  ____  _  _      
-  (  _  )(  )(  )  /__\  (  )  (_  _)(_  _)( \/ )     
-   )(_)(  )(__)(  /(__)\  )(__  _)(_   )(   \  /      
-  (___/\\(______)(__)(__)(____)(____) (__)  (__)      
+             ____  __  __    __     ___  ____             
+            (_  _)(  \/  )  /__\   / __)( ___)            
+             _)(_  )    (  /(__)\ ( (_-. )__)             
+            (____)(_/\/\_)(__)(__) \___/(____)            
+      _____  __  __    __    __    ____  ____  _  _      
+     (  _  )(  )(  )  /__\  (  )  (_  _)(_  _)( \/ )     
+      )(_)(  )(__)(  /(__)\  )(__  _)(_   )(   \  /      
+     (___/\\(______)(__)(__)(____)(____) (__)  (__)      
  ____   ____   ___  ____  ____    __    ___  ____  ____ 
 (  _ \ ( ___) / __)(  _ \( ___)  /__\  / __)( ___)(  _ \
  )(_) ) )__) ( (__  )   / )__)  /(__)\ \__ \ )__)  )   /
 (____/ (____) \___)(_)\_)(____)(__)(__)(___/(____)(_)\_)
-     ____  _  _    _  _  __    ___   __   __          
-    (  _ \( \/ )  ( \/ )(  )  (__ ) /  ) /. |         
-     ) _ < \  /    )  (  )(__  / /   )( (_  _)        
-    (____/ (__)   (_/\_)(____)(_/   (__)  (_)         
-         ____  _____  __  __  ____                    
-        (  _ \(  _  )(  )(  )(  _ \                   
-         )___/ )(_)(  )(__)(  )   /                   
-        (__)  (_____)(______)(_)\_)                   
- ___  _____  _  _    ____    __    ____    __         
-/ __)(  _  )( \( )  (  _ \  /__\  (  _ \  /__\        
-\__ \ )(_)(  )  (    )___/ /(__)\  )___/ /(__)\       
-(___/(_____)(_)\_)  (__)  (__)(__)(__)  (__)(__) 
+        ____  _  _    _  _  __    ___   __   __          
+       (  _ \( \/ )  ( \/ )(  )  (__ ) /  ) /. |         
+        ) _ < \  /    )  (  )(__  / /   )( (_  _)        
+       (____/ (__)   (_/\_)(____)(_/   (__)  (_)         
+              ____  _____  __  __  ____                    
+             (  _ \(  _  )(  )(  )(  _ \                   
+              )___/ )(_)(  )(__)(  )   /                   
+             (__)  (_____)(______)(_)\_)                   
+    ___  _____  _  _    ____    __    ____    __         
+   / __)(  _  )( \( )  (  _ \  /__\  (  _ \  /__\        
+   \__ \ )(_)(  )  (    )___/ /(__)\  )___/ /(__)\       
+   (___/(_____)(_)\_)  (__)  (__)(__)(__)  (__)(__) 
 
     "#
     );

@@ -1,6 +1,6 @@
 [package]
 name = "rust-minimize-images-quality-by-dir"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,3 +10,6 @@ regex = "1"
 image = "0.24.6"
 filetime = "0.2"
 filetime_creation = "0.1"
+
+[profile.release]
+lto = "fat"
