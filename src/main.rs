@@ -33,7 +33,15 @@ fn set_creation_and_updated_date_default(
     println!("   => new_creation_time {} ...", new_creation_time);
     if creation_time != new_creation_time {
         println!("   => creation_time != new_creation_time ==> trying another way");
-        set_creation_date_specific(&creation_time, &entry, &full_img_small_name);
+        //let _ = set_creation_date_specific(&creation_time, &entry, &full_img_small_name)?;
+        match set_creation_date_specific(&creation_time, &entry, &full_img_small_name) {
+            Ok(()) => {
+                println!("    set_creation_date_specific => OK");
+            }
+            Err(err) => {
+                println!("    => Error set_creation_date_specific: {}", err);
+            }
+        }
     }
     Ok(())
 }
@@ -59,43 +67,84 @@ fn set_creation_date_specific(
         println!("   => creation_time != new_creation_time_2 ==> impossible to set creation time");
     }
 }
-/*
+
+fn file_time_to_string(file_time: &FileTime) -> String {
+    use chrono::prelude::*;
+    let datetime =
+        NaiveDateTime::from_timestamp_opt(file_time.seconds(), file_time.nanoseconds() as u32)
+            .expect("Invalid timestamp");
+    let formatted = datetime.format("%Y%m%d%H%M");
+    formatted.to_string()
+}
+
 #[cfg(target_os = "linux")]
 fn set_creation_date_specific(
     creation_time: &FileTime,
-    _entry_: &fs::DirEntry,
-    _full_img_small_name_: &Path,
-) {
-    set_file_ctime(path: &str)
-    // Code that only runs on Linux
-    use libc::{utimensat, AT_FDCWD, UTIME_NOW};
-    use std::fs::File;
-    // use std::os::unix::prelude::*;
-    let file = File::open(path)?;
-    let now = std::time::SystemTime::now().into();
-    let atime = libc::timespec {
-        tv_sec: creation_time.tv_sec as libc::time_t,
-        tv_nsec: creation_time.tv_nsec as libc::c_long,
-    };
-    let mut times = [atime, atime];
-    unsafe {
-        utimensat(
-            AT_FDCWD,
-            path.as_ptr() as *const libc::c_char,
-            &mut times as *mut _,
-            0,
-        );
-    }
+    _entry: &fs::DirEntry,
+    full_img_small_name: &Path,
+) -> io::Result<()> {
+    use std::process::Command;
+    // Execute a command line
+
+    let date_str = file_time_to_string(creation_time);
+    println!("    Set date: {}", date_str);
+    let output = Command::new("touch")
+        .arg("-t")
+        .arg(date_str)
+        //.arg("202001151600.59")
+        .arg(&full_img_small_name)
+        .output()
+        .expect("Failed to execute command");
+    let output = String::from_utf8_lossy(&output.stdout); // output.stdout is a Vec<u8>, which is a vector of bytes.
+    println!("    Output: {}", output);
+
+    /*
+    // ########## TODO: TRY
+    #!/bin/bash
+
+    # Step 1: Save the current date and time
+    current_datetime=$(date +"%Y-%m-%d %H:%M:%S")
+
+    # Step 2: Change the date and time to your desired values
+    desired_datetime="2024-02-07 12:00:00"  # Change this to your desired date and time
+    sudo date -s "$desired_datetime"
+
+    # Step 3: Create the file
+    touch your_file_name_here.txt
+
+    # Step 4: Restore the original date and time
+    sudo date -s "$current_datetime"
+
+    */
+
+    // ########## try failed
+    // use libc::{timespec, utimensat, AT_FDCWD, UTIME_NOW};
+    // use std::ffi::CString; // Import CString
+    // let atime = timespec {
+    //     tv_sec: creation_time.seconds(),
+    //     tv_nsec: creation_time.nanoseconds() as i64,
+    // };
+    // let times = [atime, atime];
+    // // Convert Path to CString
+    // let c_path = CString::new(full_img_small_name.to_str().unwrap())?;
+    // unsafe {
+    //     utimensat(
+    //         AT_FDCWD,
+    //         c_path.as_ptr(),
+    //         times.as_ptr(),
+    //         UTIME_NOW.try_into().unwrap(),
+    //     );
+    // }
     Ok(())
 }
-*/
-fn set_creation_date_specific(
-    _creation_time: &FileTime,
-    _entry_: &fs::DirEntry,
-    _full_img_small_name_: &Path,
-) {
-    //
-}
+
+// fn set_creation_date_specific(
+//     _creation_time: &FileTime,
+//     _entry_: &fs::DirEntry,
+//     _full_img_small_name_: &Path,
+// ) {
+//     //
+// }
 
 fn main() -> Result<(), Box<dyn Error>> {
     logo();
@@ -231,7 +280,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
 
                     // SET CREATION AND MODIFIED DATE
-                    set_creation_and_updated_date_default(&entry, &full_img_small_name);
+                    let _ = set_creation_and_updated_date_default(&entry, &full_img_small_name);
 
                     println!("Image {} resized {} times.", full_img_name, num_tries);
                     num_decreased += 1;

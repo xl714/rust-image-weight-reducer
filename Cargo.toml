@@ -11,6 +11,8 @@ image = "0.24.6"
 filetime = "0.2"
 filetime_creation = "0.1"
 libc = "0.2.153"
+chrono = "0.4.33"
+time = "0.3.34"
 
 [profile.release]
 lto = "fat"
